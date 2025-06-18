@@ -31,7 +31,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import {propFinderTool, PropFinderSchema} from "./tools/propFinder.js"
 
 import { obtener_info_usuario }  from "../utils/tools.js";
-import {z} from "zod";
 
 import dotenv from "dotenv";
 dotenv.config();
