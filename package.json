@@ -1,0 +1,45 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/app/api/server.ts"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.57",
+    "@langchain/langgraph": "^0.3.1",
+    "@langchain/langgraph-sdk": "^0.0.84",
+    "@langchain/openai": "^0.5.12",
+    "@pinecone-database/pinecone": "^6.1.1",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "embla-carousel-react": "^8.6.0",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.0",
+    "langchain": "^0.3.27",
+    "lodash-es": "^4.17.21",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.2",
+    "zod": "^3.25.61"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/fs-extra": "^11.0.4",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.8.3"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
