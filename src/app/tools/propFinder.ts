@@ -1,39 +1,55 @@
-import {tool} from "@langchain/core/tools";
+import { tool } from "@langchain/core/tools";
 import { Command } from "@langchain/langgraph";
-import {ToolMessage} from "@langchain/core/messages";
-import {
-  typedUi
-} from "@langchain/langgraph-sdk/react-ui/server";
+import { ToolMessage } from "@langchain/core/messages";
+import { typedUi } from "@langchain/langgraph-sdk/react-ui/server";
 import { workflow } from "../inmo.js";
 import { z } from "zod";
 
-
- const propFinderSchema = z.object({
-    cantidad_de_habitaciones: z.number().describe("Cantidad de habitaciones que solcita el usuario"),
-    presupuesto: z.number().describe("Presupuesto aproximado que el usuario tiene disponible para la compra o alquiler de una propiedad"),
-    tipo_de_propiedad: z.string().describe("Tipo de propiedad que el usuario desea (casa, departamento, piso)"),
-    ubicacion: z.string().describe("Ubicación deseada por el usuario para la propiedad, puede ser una ciudad, barrio, zona específica o puede decir, cercano al mar o al centro de la ciudad"),
-    tipo_de_operacion: z.enum(["compra", "alquiler"]).describe("Tipo de operación que el usuario desea realizar, ya sea compra o alquiler de la propiedad"),
-})
+const propFinderSchema = z.object({
+  cantidad_de_habitaciones: z
+    .number()
+    .describe("Cantidad de habitaciones que solcita el usuario"),
+  presupuesto: z
+    .number()
+    .describe(
+      "Presupuesto aproximado que el usuario tiene disponible para la compra o alquiler de una propiedad"
+    ),
+  tipo_de_propiedad: z
+    .string()
+    .describe(
+      "Tipo de propiedad que el usuario desea (casa, departamento, piso)"
+    ),
+  ubicacion: z
+    .string()
+    .describe(
+      "Ubicación deseada por el usuario para la propiedad, puede ser una ciudad, barrio, zona específica o puede decir, cercano al mar o al centro de la ciudad"
+    ),
+  tipo_de_operacion: z
+    .enum(["compra", "alquiler"])
+    .describe(
+      "Tipo de operación que el usuario desea realizar, ya sea compra o alquiler de la propiedad"
+    ),
+});
 
 export type PropFinderSchema = z.infer<typeof propFinderSchema>;
 
-
 const getProps = async () => {
-    try {
-        const response = await fetch("https://propiedades.techbank.ai:4001/public/productos/compact"); // Reemplaza con la URL real de tu API
-        if(!response.ok) {
-           console.error("Error en la respuesta de la API:", response.statusText);
-           return [];
-        }
-
-        const data = await response.json();
-        return data 
-    } catch (error:any) {
-       console.error("Error al obtener las propiedades:", error.message);
-       return [];
+  try {
+    const response = await fetch(
+      "https://propiedades.techbank.ai:4001/public/productos/compact"
+    ); // Reemplaza con la URL real de tu API
+    if (!response.ok) {
+      console.error("Error en la respuesta de la API:", response.statusText);
+      return [];
     }
-}
+
+    const data = await response.json();
+    return data;
+  } catch (error: any) {
+    console.error("Error al obtener las propiedades:", error.message);
+    return [];
+  }
+};
 
 type Inmueble = {
   PROPS: {
@@ -54,12 +70,12 @@ type Requisitos = {
   zona?: string;
 };
 
+let propiedades: Inmueble[] = [];
+let data: Inmueble[] = [];
+
 type Scored = Inmueble & { score: number };
 
-function filtrarYOrdenar(
-  inmuebles: Inmueble[],
-  req: Requisitos
-): Scored[] {
+function filtrarYOrdenar(inmuebles: Inmueble[], req: Requisitos): Scored[] {
   const margin = 0.15;
 
   return inmuebles
@@ -106,45 +122,78 @@ function filtrarYOrdenar(
     .slice(0, 5); // Limitar a los 5 mejores
 }
 
-
-
-
 export const propFinderTool = tool(
-    async ({ cantidad_de_habitaciones, presupuesto, tipo_de_propiedad, ubicacion }: z.infer<typeof propFinderSchema>, config) => {
-        const state = await workflow.getState({
-            configurable: { thread_id: config.configurable.thread_id },
-        });
-        const toolCallId = state.values.messages.at(-1).tool_calls.find((call:any) => call.name === "propFinder")?.id;
+  async (
+    {
+      cantidad_de_habitaciones,
+      presupuesto,
+      tipo_de_propiedad,
+      ubicacion,
+    }: z.infer<typeof propFinderSchema>,
+    config
+  ) => {
+    const state = await workflow.getState({
+      configurable: { thread_id: config.configurable.thread_id },
+    });
+    const toolCallId = state.values.messages
+      .at(-1)
+      .tool_calls.find((call: any) => call.name === "propFinder")?.id;
 
-        console.log("config. ", config);
-        console.log("state: ", state);
+    console.log("config. ", config);
+    console.log("state: ", state);
 
-        
+    // Validación de los parámetros
 
-        // Validación de los parámetros
+    const requisitos = {
+      dormitorios: cantidad_de_habitaciones,
+      presupuesto: presupuesto,
+      tipo: tipo_de_propiedad,
+      zona: ubicacion,
+    };
 
-        const requisitos = {
-            dormitorios: cantidad_de_habitaciones,
-            presupuesto: presupuesto,
-            tipo: tipo_de_propiedad,
-            zona: ubicacion
-        }
+    // LLamada a la API para obtener las propiedades
 
-        // LLamada a la API para obtener las propiedades
-        const data = await getProps();
-        if(!data || data.length === 0) {
-            return {toolMessage: new ToolMessage("No se pudieron obtener las propiedades desde la API.", toolCallId, "propFinder")}
-        }
+    if (propiedades.length === 0) {
+      const data = await getProps();
+      if (!Array.isArray(data) || data.length === 0) {
+        return {
+          toolMessage: new ToolMessage(
+            "No se pudieron obtener las propiedades desde la API.",
+            toolCallId,
+            "propFinder"
+          ),
+        };
+      }
 
-        // Filtrado y ordenamiento de las propiedades según los requisitos
-        const dataFilter = filtrarYOrdenar(data, requisitos)
-        console.log("dataFilter: ", dataFilter);
-        if (dataFilter.length === 0) {
-            return {toolMessage: new ToolMessage("No se encontraron propiedades que coincidan con los criterios proporcionados.", toolCallId, "propFinder")}
-        }
+      propiedades.push(...data);
+    }
 
-        const message = `Según los requisitos se han encontrado las siguientes propiedades:
-        ${JSON.stringify(dataFilter , null, 2)}
+    // Filtrado y ordenamiento de las propiedades según los requisitos
+    const dataFilter = filtrarYOrdenar(propiedades, requisitos);
+    console.log("dataFilter: ", dataFilter);
+    if (dataFilter.length === 0) {
+      return {
+        toolMessage: new ToolMessage(
+          "No se encontraron propiedades que coincidan con los criterios proporcionados.",
+          toolCallId,
+          "propFinder"
+        ),
+      };
+    }
+
+    const message = `Según los requisitos se han encontrado las siguientes propiedades:
+        ${dataFilter
+          .map((p, i) => {
+            const props = p.PROPS;
+            return `Propiedad ${i + 1}:
+  
+  - Tipo: ${props.tipo ?? "No especificado"}
+  - Zona: ${props.zona ?? props.ciudad ?? "Sin zona"}
+  - Dormitorios: ${props.dormitorios ?? "N/A"}
+  - Precio: ${props.precio ? `€${props.precio}` : "No especificado"}
+`;
+          })
+          .join("\n\n")}
 
 
         Busqueda del ususario: 
@@ -152,7 +201,9 @@ export const propFinderTool = tool(
         - Presupuesto: ${presupuesto}
         - Tipo de propiedad: ${tipo_de_propiedad}
         - Ubicación: ${ubicacion}
-        - Tipo de operación: ${requisitos.tipo ? requisitos.tipo : "No especificado"}
+        - Tipo de operación: ${
+          requisitos.tipo ? requisitos.tipo : "No especificado"
+        }
         
         
         Accion a tomar: 
@@ -164,18 +215,17 @@ export const propFinderTool = tool(
 
         y lo que quieras agrear , siempre mencionando el numero o la ubicación geografica de esa propiedad ya que va a ser el titulo de la descripción
         ;
-        `
+        `;
 
-        
-         return {toolMessage: new ToolMessage(message, toolCallId, "propFinder"), items: dataFilter}
-
-  
-    },{
+    return {
+      toolMessage: new ToolMessage(message, toolCallId, "propFinder"),
+      items: dataFilter,
+    };
+  },
+  {
     name: "propFinder",
-    description: "Buscar propiedades según los criterios del usuario para la compra o alquiler",
+    description:
+      "Buscar propiedades según los criterios del usuario para la compra o alquiler",
     schema: propFinderSchema,
-    }
-)
-
-
-
+  }
+);
